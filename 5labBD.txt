@@ -1,0 +1,15 @@
+Создание последовательности
+----------------------------------------------------------------------------------------------
+CREATE SEQUENCE stud_id_sequence
+START WITH 71
+INCREMENT BY 1;
+
+----------------------------------------------------------------------------------------------
+Проверка
+
+INSERT INTO STUDENT (stud_id, surname, name, stipend, kurs, city, birthday, univ_id)
+VALUES (stud_id_sequence.NEXTVAL, 'Иванов', 'Иван', 5000, 1, 'Москва', TO_DATE('2000-01-01', 'YYYY-MM-DD'), 1);
+
+INSERT INTO STUDENT (stud_id, surname, name, stipend, kurs, city, birthday, univ_id)
+VALUES (stud_id_sequence.NEXTVAL, 'Петров', 'Константин', 5500, 2, 'Санкт-Петербург', TO_DATE('1999-05-10', 'YYYY-MM-DD'), 1);
+----------------------------------------------------------------------------------------------

@@ -1,0 +1,65 @@
+stud_id,surname,name,stipend,kurs,city,birthday,univ_id
+---------------------------------------------------
+Создание диагн.таблицы
+---------------------------------------------------
+CREATE TABLE scholarship_diagnostics (
+    student_id NUMBER,
+    new_stipend NUMBER,
+    avg_stipend NUMBER,
+    deviation NUMBER,
+    diagnostic_date DATE
+);
+---------------------------------------------------
+Теперь триггер
+---------------------------------------------------
+CREATE OR REPLACE TRIGGER check_scholarship_deviation
+BEFORE INSERT OR UPDATE ON student
+FOR EACH ROW
+DECLARE
+    v_avg_stipend NUMBER; -- Средняя стипендия
+    v_threshold NUMBER := 500; -- Порог уклонения
+    v_deviation NUMBER; -- Рассчитанное уклонение
+BEGIN
+    -- Подсчет средней стипендии
+    SELECT AVG(stipend)
+    INTO v_avg_stipend
+    FROM student;
+
+    -- Вычисление уклонения
+    v_deviation := ABS(:NEW.stipend - v_avg_stipend);
+
+    -- Проверка на превышение порога
+    IF v_deviation > v_threshold THEN
+        -- Запись диагностического сообщения в таблицу
+        INSERT INTO scholarship_diagnostics (
+            student_id, new_stipend, avg_stipend, deviation, diagnostic_date
+        ) VALUES (
+            :NEW.stud_id, :NEW.stipend, v_avg_stipend, v_deviation, SYSDATE
+        );
+
+        -- Вывод сообщения в консоль
+        DBMS_OUTPUT.PUT_LINE('Уклонение стипендии (студент: ' || :NEW.stud_id || ') превышает пороговое значение. Новый стипендий: ' || :NEW.stipend || ', Средняя стипендия: ' || v_avg_stipend || ', Уклонение: ' || v_deviation);
+    END IF;
+END;
+
+---------------------------------------------------
+Проверка триггера
+---------------------------------------------------
+для DBMS
+
+SET SERVEROUTPUT ON;
+--------------------------------------------------
+Подходящий
+---------------------------------------------------
+INSERT INTO student (stud_id, surname, name, stipend, kurs, city, birthday, univ_id)
+VALUES (61, 'Петров', 'Константин', 350, 2, 'Санкт-Петербург', TO_DATE('1999-05-10', 'YYYY-MM-DD'), 1);
+---------------------------------------------------
+Неподходящий
+INSERT INTO student (stud_id, surname, name, stipend, kurs, city, birthday, univ_id)
+VALUES (62, 'Петров', 'Константин', 5500, 2, 'Санкт-Петербург', TO_DATE('1999-05-10', 'YYYY-MM-DD'), 1);
+
+---------------------------------------------------
+Проверка средней стипеднии
+
+SELECT AVG(stipend) FROM student;
+---------------------------------------------------
