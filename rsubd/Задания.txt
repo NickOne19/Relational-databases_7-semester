@@ -1,0 +1,158 @@
+1.Курсор
+Курсор для выбора данных о спортсменах из определённой весовой категории, с использованием цикла и обработки исключительных ситуаций.
+--------------------------------------------------------------------------------------------------------
+
+SET SERVEROUTPUT ON
+DECLARE
+  CURSOR athlete_cursor IS
+    SELECT * FROM Athletes
+    WHERE weight_category = 'Средний вес';
+
+  athlete_record Athletes%ROWTYPE;
+
+  e_no_athletes EXCEPTION;
+  v_found BOOLEAN := FALSE;
+
+BEGIN
+  OPEN athlete_cursor;
+
+  LOOP
+    FETCH athlete_cursor INTO athlete_record;
+    EXIT WHEN athlete_cursor%NOTFOUND;
+
+    v_found := TRUE;
+    DBMS_OUTPUT.PUT_LINE('ID: ' || athlete_record.athlete_id ||
+                         ', Имя: ' || athlete_record.first_name ||
+                         ', Фамилия: ' || athlete_record.last_name ||
+                         ', Категория веса: ' || athlete_record.weight_category ||
+                         ', Рейтинг: ' || athlete_record.ranking);
+  END LOOP;
+
+  CLOSE athlete_cursor;
+
+  IF NOT v_found THEN
+    RAISE e_no_athletes;
+  END IF;
+
+EXCEPTION
+  WHEN e_no_athletes THEN
+    DBMS_OUTPUT.PUT_LINE('Исключение: Нет спортсменов в категории "Средний вес".');
+END;
+/
+--------------------------------------------------------------------------------------------------------
+Проверка:
+Удалить всех из категории средний вес
+
+DELETE FROM Athletes WHERE weight_category = 'Средний вес';
+COMMIT;
+
+--------------------------------------------------------------------------------------------------------
+2.Тригер
+2. Триггер: Автоматическое обновление весовой категории
+Триггер автоматически обновляет весовую категорию спортсмена на основе изменений веса.
+--------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER update_weight_category
+BEFORE UPDATE OF weight ON Athletes
+FOR EACH ROW
+BEGIN
+  IF :NEW.weight < 60 THEN
+    :NEW.weight_category := 'Легкий вес';
+  ELSIF :NEW.weight BETWEEN 60 AND 75 THEN
+    :NEW.weight_category := 'Средний вес';
+  ELSE
+    :NEW.weight_category := 'Тяжелый вес';
+  END IF;
+END;
+/
+
+--------------------------------------------------------------------------------------------------------
+Проверка:
+Измените вес спортсмена:
+UPDATE Athletes SET weight = 55 WHERE athlete_id = 1;
+
+Проверьте, обновилась ли весовая категория:
+SELECT weight, weight_category FROM Athletes WHERE athlete_id = 1;
+--------------------------------------------------------------------------------------------------------
+3.Пакет
+Пакет на основе примера для задачи с таблицей Athletes
+Функция с параметрами: Подсчитывает количество спортсменов из заданного города.
+Процедура без параметров: Подсчитывает количество вызовов функции, записывает название города, количество спортсменов и общее число вызовов функции в заранее созданную таблицу City_Statistics.
+--------------------------------------------------------------------------------------------------------
+Создание вспомогательной таблицы:
+
+CREATE TABLE City_Statistics (
+  record_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  city_name VARCHAR2(255),
+  athlete_count NUMBER,
+  function_calls NUMBER
+);
+--------------------------------------------------------------------------------------------------------
+Код пакета:
+
+CREATE OR REPLACE PACKAGE Athlete_City_Manager IS
+  FUNCTION Count_Athletes_In_City(p_city_name VARCHAR2) RETURN NUMBER;
+  PROCEDURE Log_Statistics;
+END Athlete_City_Manager;
+/
+
+CREATE OR REPLACE PACKAGE BODY Athlete_City_Manager IS
+
+  -- Переменная для подсчета количества вызовов функции
+  v_function_calls NUMBER := 0;
+
+  -- Функция для подсчета спортсменов из указанного города
+  FUNCTION Count_Athletes_In_City(p_city_name VARCHAR2) RETURN NUMBER IS
+    v_athlete_count NUMBER;
+  BEGIN
+    SELECT COUNT(*)
+    INTO v_athlete_count
+    FROM Athletes
+    WHERE address LIKE '%' || p_city_name || '%';
+
+    v_function_calls := v_function_calls + 1; -- Увеличиваем счетчик вызовов функции
+
+    RETURN v_athlete_count;
+  END Count_Athletes_In_City;
+
+  -- Процедура для записи статистики
+  PROCEDURE Log_Statistics IS
+    v_city_name VARCHAR2(255) := 'Москва'; -- Текущий город (пример)
+    v_athlete_count NUMBER;
+  BEGIN
+    -- Получаем количество спортсменов из города
+    v_athlete_count := Count_Athletes_In_City(v_city_name);
+
+    -- Записываем данные в таблицу статистики
+    INSERT INTO City_Statistics (city_name, athlete_count, function_calls)
+    VALUES (v_city_name, v_athlete_count, v_function_calls);
+
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Статистика добавлена: Город = ' || v_city_name || 
+                         ', Кол-во спортсменов = ' || v_athlete_count || 
+                         ', Вызовы функции = ' || v_function_calls);
+  END Log_Statistics;
+
+END Athlete_City_Manager;
+/
+--------------------------------------------------------------------------------------------------------
+Проверка пакета
+1. Тест функции
+Посчитать количество спортсменов из города "Москва":
+DECLARE
+  v_count NUMBER;
+BEGIN
+  v_count := Athlete_City_Manager.Count_Athletes_In_City('Москва');
+  DBMS_OUTPUT.PUT_LINE('Количество спортсменов из Москвы: ' || v_count);
+END;
+--------------------------------------------------------------------------------------------------------
+2. Тест процедуры
+Записать статистику для города "Москва":
+BEGIN
+  Athlete_City_Manager.Log_Statistics;
+END;
+--------------------------------------------------------------------------------------------------------
+3. Проверка таблицы статистики
+Проверить записанные данные в таблице City_Statistics:
+SELECT * FROM City_Statistics;
+--------------------------------------------------------------------------------------------------------
